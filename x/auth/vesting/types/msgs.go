@@ -75,12 +75,8 @@ func (msg MsgCreateVestingAccount) GetSignBytes() []byte {
 }
 
 // GetSigners returns the expected signers for a MsgCreateVestingAccount.
-func (msg MsgCreateVestingAccount) GetSigners() []sdk.AccAddress {
-	from, err := sdk.AccAddressFromBech32(msg.FromAddress)
-	if err != nil {
-		panic(err)
-	}
-	return []sdk.AccAddress{from}
+func (msg MsgCreateVestingAccount) GetSigners() []string {
+	return []string{msg.FromAddress}
 }
 
 // NewMsgCreateVestingAccount returns a reference to a new MsgCreateVestingAccount.
