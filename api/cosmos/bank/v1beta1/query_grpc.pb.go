@@ -19,17 +19,19 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Query_Balance_FullMethodName                 = "/cosmos.bank.v1beta1.Query/Balance"
-	Query_AllBalances_FullMethodName             = "/cosmos.bank.v1beta1.Query/AllBalances"
-	Query_SpendableBalances_FullMethodName       = "/cosmos.bank.v1beta1.Query/SpendableBalances"
-	Query_SpendableBalanceByDenom_FullMethodName = "/cosmos.bank.v1beta1.Query/SpendableBalanceByDenom"
-	Query_TotalSupply_FullMethodName             = "/cosmos.bank.v1beta1.Query/TotalSupply"
-	Query_SupplyOf_FullMethodName                = "/cosmos.bank.v1beta1.Query/SupplyOf"
-	Query_Params_FullMethodName                  = "/cosmos.bank.v1beta1.Query/Params"
-	Query_DenomMetadata_FullMethodName           = "/cosmos.bank.v1beta1.Query/DenomMetadata"
-	Query_DenomsMetadata_FullMethodName          = "/cosmos.bank.v1beta1.Query/DenomsMetadata"
-	Query_DenomOwners_FullMethodName             = "/cosmos.bank.v1beta1.Query/DenomOwners"
-	Query_SendEnabled_FullMethodName             = "/cosmos.bank.v1beta1.Query/SendEnabled"
+	Query_Balance_FullMethodName                    = "/cosmos.bank.v1beta1.Query/Balance"
+	Query_AllBalances_FullMethodName                = "/cosmos.bank.v1beta1.Query/AllBalances"
+	Query_SpendableBalances_FullMethodName          = "/cosmos.bank.v1beta1.Query/SpendableBalances"
+	Query_SpendableBalanceByDenom_FullMethodName    = "/cosmos.bank.v1beta1.Query/SpendableBalanceByDenom"
+	Query_TotalSupply_FullMethodName                = "/cosmos.bank.v1beta1.Query/TotalSupply"
+	Query_SupplyOf_FullMethodName                   = "/cosmos.bank.v1beta1.Query/SupplyOf"
+	Query_Params_FullMethodName                     = "/cosmos.bank.v1beta1.Query/Params"
+	Query_DenomMetadata_FullMethodName              = "/cosmos.bank.v1beta1.Query/DenomMetadata"
+	Query_DenomMetadataByQueryString_FullMethodName = "/cosmos.bank.v1beta1.Query/DenomMetadataByQueryString"
+	Query_DenomsMetadata_FullMethodName             = "/cosmos.bank.v1beta1.Query/DenomsMetadata"
+	Query_DenomOwners_FullMethodName                = "/cosmos.bank.v1beta1.Query/DenomOwners"
+	Query_DenomOwnersByQuery_FullMethodName         = "/cosmos.bank.v1beta1.Query/DenomOwnersByQuery"
+	Query_SendEnabled_FullMethodName                = "/cosmos.bank.v1beta1.Query/SendEnabled"
 )
 
 // QueryClient is the client API for Query service.
@@ -73,8 +75,10 @@ type QueryClient interface {
 	SupplyOf(ctx context.Context, in *QuerySupplyOfRequest, opts ...grpc.CallOption) (*QuerySupplyOfResponse, error)
 	// Params queries the parameters of x/bank module.
 	Params(ctx context.Context, in *QueryParamsRequest, opts ...grpc.CallOption) (*QueryParamsResponse, error)
-	// DenomsMetadata queries the client metadata of a given coin denomination.
+	// DenomMetadata queries the client metadata of a given coin denomination.
 	DenomMetadata(ctx context.Context, in *QueryDenomMetadataRequest, opts ...grpc.CallOption) (*QueryDenomMetadataResponse, error)
+	// DenomMetadataByQueryString queries the client metadata of a given coin denomination.
+	DenomMetadataByQueryString(ctx context.Context, in *QueryDenomMetadataByQueryStringRequest, opts ...grpc.CallOption) (*QueryDenomMetadataByQueryStringResponse, error)
 	// DenomsMetadata queries the client metadata for all registered coin
 	// denominations.
 	DenomsMetadata(ctx context.Context, in *QueryDenomsMetadataRequest, opts ...grpc.CallOption) (*QueryDenomsMetadataResponse, error)
@@ -86,6 +90,11 @@ type QueryClient interface {
 	//
 	// Since: cosmos-sdk 0.46
 	DenomOwners(ctx context.Context, in *QueryDenomOwnersRequest, opts ...grpc.CallOption) (*QueryDenomOwnersResponse, error)
+	// DenomOwnersByQuery queries for all account addresses that own a particular token
+	// denomination.
+	//
+	// Since: cosmos-sdk 0.50.3
+	DenomOwnersByQuery(ctx context.Context, in *QueryDenomOwnersByQueryRequest, opts ...grpc.CallOption) (*QueryDenomOwnersByQueryResponse, error)
 	// SendEnabled queries for SendEnabled entries.
 	//
 	// This query only returns denominations that have specific SendEnabled settings.
@@ -184,6 +193,15 @@ func (c *queryClient) DenomMetadata(ctx context.Context, in *QueryDenomMetadataR
 	return out, nil
 }
 
+func (c *queryClient) DenomMetadataByQueryString(ctx context.Context, in *QueryDenomMetadataByQueryStringRequest, opts ...grpc.CallOption) (*QueryDenomMetadataByQueryStringResponse, error) {
+	out := new(QueryDenomMetadataByQueryStringResponse)
+	err := c.cc.Invoke(ctx, Query_DenomMetadataByQueryString_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *queryClient) DenomsMetadata(ctx context.Context, in *QueryDenomsMetadataRequest, opts ...grpc.CallOption) (*QueryDenomsMetadataResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryDenomsMetadataResponse)
@@ -198,6 +216,15 @@ func (c *queryClient) DenomOwners(ctx context.Context, in *QueryDenomOwnersReque
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryDenomOwnersResponse)
 	err := c.cc.Invoke(ctx, Query_DenomOwners_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryClient) DenomOwnersByQuery(ctx context.Context, in *QueryDenomOwnersByQueryRequest, opts ...grpc.CallOption) (*QueryDenomOwnersByQueryResponse, error) {
+	out := new(QueryDenomOwnersByQueryResponse)
+	err := c.cc.Invoke(ctx, Query_DenomOwnersByQuery_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -255,8 +282,10 @@ type QueryServer interface {
 	SupplyOf(context.Context, *QuerySupplyOfRequest) (*QuerySupplyOfResponse, error)
 	// Params queries the parameters of x/bank module.
 	Params(context.Context, *QueryParamsRequest) (*QueryParamsResponse, error)
-	// DenomsMetadata queries the client metadata of a given coin denomination.
+	// DenomMetadata queries the client metadata of a given coin denomination.
 	DenomMetadata(context.Context, *QueryDenomMetadataRequest) (*QueryDenomMetadataResponse, error)
+	// DenomMetadataByQueryString queries the client metadata of a given coin denomination.
+	DenomMetadataByQueryString(context.Context, *QueryDenomMetadataByQueryStringRequest) (*QueryDenomMetadataByQueryStringResponse, error)
 	// DenomsMetadata queries the client metadata for all registered coin
 	// denominations.
 	DenomsMetadata(context.Context, *QueryDenomsMetadataRequest) (*QueryDenomsMetadataResponse, error)
@@ -268,6 +297,11 @@ type QueryServer interface {
 	//
 	// Since: cosmos-sdk 0.46
 	DenomOwners(context.Context, *QueryDenomOwnersRequest) (*QueryDenomOwnersResponse, error)
+	// DenomOwnersByQuery queries for all account addresses that own a particular token
+	// denomination.
+	//
+	// Since: cosmos-sdk 0.50.3
+	DenomOwnersByQuery(context.Context, *QueryDenomOwnersByQueryRequest) (*QueryDenomOwnersByQueryResponse, error)
 	// SendEnabled queries for SendEnabled entries.
 	//
 	// This query only returns denominations that have specific SendEnabled settings.
@@ -310,11 +344,17 @@ func (UnimplementedQueryServer) Params(context.Context, *QueryParamsRequest) (*Q
 func (UnimplementedQueryServer) DenomMetadata(context.Context, *QueryDenomMetadataRequest) (*QueryDenomMetadataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DenomMetadata not implemented")
 }
+func (UnimplementedQueryServer) DenomMetadataByQueryString(context.Context, *QueryDenomMetadataByQueryStringRequest) (*QueryDenomMetadataByQueryStringResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DenomMetadataByQueryString not implemented")
+}
 func (UnimplementedQueryServer) DenomsMetadata(context.Context, *QueryDenomsMetadataRequest) (*QueryDenomsMetadataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DenomsMetadata not implemented")
 }
 func (UnimplementedQueryServer) DenomOwners(context.Context, *QueryDenomOwnersRequest) (*QueryDenomOwnersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DenomOwners not implemented")
+}
+func (UnimplementedQueryServer) DenomOwnersByQuery(context.Context, *QueryDenomOwnersByQueryRequest) (*QueryDenomOwnersByQueryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DenomOwnersByQuery not implemented")
 }
 func (UnimplementedQueryServer) SendEnabled(context.Context, *QuerySendEnabledRequest) (*QuerySendEnabledResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendEnabled not implemented")
@@ -484,6 +524,24 @@ func _Query_DenomMetadata_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Query_DenomMetadataByQueryString_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryDenomMetadataByQueryStringRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServer).DenomMetadataByQueryString(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Query_DenomMetadataByQueryString_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServer).DenomMetadataByQueryString(ctx, req.(*QueryDenomMetadataByQueryStringRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Query_DenomsMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueryDenomsMetadataRequest)
 	if err := dec(in); err != nil {
@@ -516,6 +574,24 @@ func _Query_DenomOwners_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(QueryServer).DenomOwners(ctx, req.(*QueryDenomOwnersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Query_DenomOwnersByQuery_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryDenomOwnersByQueryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServer).DenomOwnersByQuery(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Query_DenomOwnersByQuery_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServer).DenomOwnersByQuery(ctx, req.(*QueryDenomOwnersByQueryRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -578,12 +654,20 @@ var Query_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Query_DenomMetadata_Handler,
 		},
 		{
+			MethodName: "DenomMetadataByQueryString",
+			Handler:    _Query_DenomMetadataByQueryString_Handler,
+		},
+		{
 			MethodName: "DenomsMetadata",
 			Handler:    _Query_DenomsMetadata_Handler,
 		},
 		{
 			MethodName: "DenomOwners",
 			Handler:    _Query_DenomOwners_Handler,
+		},
+		{
+			MethodName: "DenomOwnersByQuery",
+			Handler:    _Query_DenomOwnersByQuery_Handler,
 		},
 		{
 			MethodName: "SendEnabled",

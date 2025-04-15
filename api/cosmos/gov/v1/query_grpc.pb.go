@@ -21,14 +21,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Query_Proposal_FullMethodName    = "/cosmos.gov.v1.Query/Proposal"
-	Query_Proposals_FullMethodName   = "/cosmos.gov.v1.Query/Proposals"
-	Query_Vote_FullMethodName        = "/cosmos.gov.v1.Query/Vote"
-	Query_Votes_FullMethodName       = "/cosmos.gov.v1.Query/Votes"
-	Query_Params_FullMethodName      = "/cosmos.gov.v1.Query/Params"
-	Query_Deposit_FullMethodName     = "/cosmos.gov.v1.Query/Deposit"
-	Query_Deposits_FullMethodName    = "/cosmos.gov.v1.Query/Deposits"
-	Query_TallyResult_FullMethodName = "/cosmos.gov.v1.Query/TallyResult"
+	Query_Constitution_FullMethodName = "/cosmos.gov.v1.Query/Constitution"
+	Query_Proposal_FullMethodName     = "/cosmos.gov.v1.Query/Proposal"
+	Query_Proposals_FullMethodName    = "/cosmos.gov.v1.Query/Proposals"
+	Query_Vote_FullMethodName         = "/cosmos.gov.v1.Query/Vote"
+	Query_Votes_FullMethodName        = "/cosmos.gov.v1.Query/Votes"
+	Query_Params_FullMethodName       = "/cosmos.gov.v1.Query/Params"
+	Query_Deposit_FullMethodName      = "/cosmos.gov.v1.Query/Deposit"
+	Query_Deposits_FullMethodName     = "/cosmos.gov.v1.Query/Deposits"
+	Query_TallyResult_FullMethodName  = "/cosmos.gov.v1.Query/TallyResult"
 )
 
 // QueryClient is the client API for Query service.
@@ -37,6 +38,8 @@ const (
 //
 // Query defines the gRPC querier service for gov module
 type QueryClient interface {
+	// Constitution queries the chain's constitution.
+	Constitution(ctx context.Context, in *QueryConstitutionRequest, opts ...grpc.CallOption) (*QueryConstitutionResponse, error)
 	// Proposal queries proposal details based on ProposalID.
 	Proposal(ctx context.Context, in *QueryProposalRequest, opts ...grpc.CallOption) (*QueryProposalResponse, error)
 	// Proposals queries all proposals based on given status.
@@ -47,7 +50,7 @@ type QueryClient interface {
 	Votes(ctx context.Context, in *QueryVotesRequest, opts ...grpc.CallOption) (*QueryVotesResponse, error)
 	// Params queries all parameters of the gov module.
 	Params(ctx context.Context, in *QueryParamsRequest, opts ...grpc.CallOption) (*QueryParamsResponse, error)
-	// Deposit queries single deposit information based proposalID, depositAddr.
+	// Deposit queries single deposit information based on proposalID, depositAddr.
 	Deposit(ctx context.Context, in *QueryDepositRequest, opts ...grpc.CallOption) (*QueryDepositResponse, error)
 	// Deposits queries all deposits of a single proposal.
 	Deposits(ctx context.Context, in *QueryDepositsRequest, opts ...grpc.CallOption) (*QueryDepositsResponse, error)
@@ -61,6 +64,15 @@ type queryClient struct {
 
 func NewQueryClient(cc grpc.ClientConnInterface) QueryClient {
 	return &queryClient{cc}
+}
+
+func (c *queryClient) Constitution(ctx context.Context, in *QueryConstitutionRequest, opts ...grpc.CallOption) (*QueryConstitutionResponse, error) {
+	out := new(QueryConstitutionResponse)
+	err := c.cc.Invoke(ctx, Query_Constitution_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *queryClient) Proposal(ctx context.Context, in *QueryProposalRequest, opts ...grpc.CallOption) (*QueryProposalResponse, error) {
@@ -149,6 +161,8 @@ func (c *queryClient) TallyResult(ctx context.Context, in *QueryTallyResultReque
 //
 // Query defines the gRPC querier service for gov module
 type QueryServer interface {
+	// Constitution queries the chain's constitution.
+	Constitution(context.Context, *QueryConstitutionRequest) (*QueryConstitutionResponse, error)
 	// Proposal queries proposal details based on ProposalID.
 	Proposal(context.Context, *QueryProposalRequest) (*QueryProposalResponse, error)
 	// Proposals queries all proposals based on given status.
@@ -159,7 +173,7 @@ type QueryServer interface {
 	Votes(context.Context, *QueryVotesRequest) (*QueryVotesResponse, error)
 	// Params queries all parameters of the gov module.
 	Params(context.Context, *QueryParamsRequest) (*QueryParamsResponse, error)
-	// Deposit queries single deposit information based proposalID, depositAddr.
+	// Deposit queries single deposit information based on proposalID, depositAddr.
 	Deposit(context.Context, *QueryDepositRequest) (*QueryDepositResponse, error)
 	// Deposits queries all deposits of a single proposal.
 	Deposits(context.Context, *QueryDepositsRequest) (*QueryDepositsResponse, error)
@@ -175,6 +189,9 @@ type QueryServer interface {
 // pointer dereference when methods are called.
 type UnimplementedQueryServer struct{}
 
+func (UnimplementedQueryServer) Constitution(context.Context, *QueryConstitutionRequest) (*QueryConstitutionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Constitution not implemented")
+}
 func (UnimplementedQueryServer) Proposal(context.Context, *QueryProposalRequest) (*QueryProposalResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Proposal not implemented")
 }
@@ -218,6 +235,24 @@ func RegisterQueryServer(s grpc.ServiceRegistrar, srv QueryServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&Query_ServiceDesc, srv)
+}
+
+func _Query_Constitution_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryConstitutionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServer).Constitution(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Query_Constitution_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServer).Constitution(ctx, req.(*QueryConstitutionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Query_Proposal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -371,6 +406,10 @@ var Query_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "cosmos.gov.v1.Query",
 	HandlerType: (*QueryServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Constitution",
+			Handler:    _Query_Constitution_Handler,
+		},
 		{
 			MethodName: "Proposal",
 			Handler:    _Query_Proposal_Handler,

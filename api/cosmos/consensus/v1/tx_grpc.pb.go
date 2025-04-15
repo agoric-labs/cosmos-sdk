@@ -30,7 +30,7 @@ const (
 //
 // Msg defines the bank Msg service.
 type MsgClient interface {
-	// UpdateParams defines a governance operation for updating the x/consensus_param module parameters.
+	// UpdateParams defines a governance operation for updating the x/consensus module parameters.
 	// The authority is defined in the keeper.
 	//
 	// Since: cosmos-sdk 0.47
@@ -61,7 +61,7 @@ func (c *msgClient) UpdateParams(ctx context.Context, in *MsgUpdateParams, opts 
 //
 // Msg defines the bank Msg service.
 type MsgServer interface {
-	// UpdateParams defines a governance operation for updating the x/consensus_param module parameters.
+	// UpdateParams defines a governance operation for updating the x/consensus module parameters.
 	// The authority is defined in the keeper.
 	//
 	// Since: cosmos-sdk 0.47
