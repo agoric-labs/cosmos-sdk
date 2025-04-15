@@ -6,61 +6,38 @@ import (
 	"reflect"
 	"strings"
 
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
-
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cosmos/gogoproto/jsonpb"
 	proto "github.com/cosmos/gogoproto/proto"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"github.com/cosmos/cosmos-sdk/codec"
 )
+
+type EventManagerI interface {
+	Events() Events
+	ABCIEvents() []abci.Event
+	EmitTypedEvent(tev proto.Message) error
+	EmitTypedEvents(tevs ...proto.Message) error
+	EmitEvent(event Event)
+	EmitEvents(events Events)
+}
 
 // ----------------------------------------------------------------------------
 // Event Manager
 // ----------------------------------------------------------------------------
 
+var _ EventManagerI = (*EventManager)(nil)
+
 // EventManager implements a simple wrapper around a slice of Event objects that
 // can be emitted from.
 type EventManager struct {
 	events Events
-	// history holds the events from all transactions delivered in a block
-	// [AGORIC] Used to communicate the history through the context.
-	history []abci.Event
-}
-
-// NewEventManagerWithHistory returns a new event manager with empty events,
-// but seeded with the provided history of earlier events in the block.
-// [AGORIC] This should be used to create the EventManager for use in EndBlockers.
-func NewEventManagerWithHistory(history []abci.Event) *EventManager {
-	return &EventManager{
-		events:  EmptyEvents(),
-		history: history,
-	}
 }
 
 func NewEventManager() *EventManager {
-	return NewEventManagerWithHistory([]abci.Event{})
-}
-
-// GetABCIEventHistory returns a deep copy of the ABCI events history.
-// [AGORIC] This should only be called in EndBlock processing.
-func (em *EventManager) GetABCIEventHistory() []abci.Event {
-	history := make([]abci.Event, len(em.history))
-	for i, event := range em.history {
-		history[i].Type = event.Type
-		attrs := make([]abci.EventAttribute, len(event.Attributes))
-		history[i].Attributes = attrs
-		for j, attr := range event.Attributes {
-			attrs[j] = abci.EventAttribute{
-				Index: attr.Index,
-				Key:   attr.Key,
-				Value: attr.Value,
-			}
-		}
-	}
-	copy(history, em.history)
-	return history
+	return &EventManager{EmptyEvents()}
 }
 
 func (em *EventManager) Events() Events { return em.events }
@@ -216,7 +193,7 @@ func (a Attribute) String() string {
 	return fmt.Sprintf("%s: %s", a.Key, a.Value)
 }
 
-// ToKVPair converts an Attribute object into a Tendermint key/value pair.
+// ToKVPair converts an Attribute object into a CometBFT key/value pair.
 func (a Attribute) ToKVPair() abci.EventAttribute {
 	return abci.EventAttribute{Key: a.Key, Value: a.Value}
 }

@@ -4,6 +4,9 @@
 # docker build --pull --rm -f "contrib/devtools/Dockerfile" -t cosmossdk-proto:latest "contrib/devtools"
 # docker run --rm -v $(pwd):/workspace --workdir /workspace cosmossdk-proto sh ./scripts/protocgen.sh
 
+echo "Formatting protobuf files"
+find ./ -name "*.proto" -exec clang-format -i {} \;
+
 set -e
 
 echo "Generating gogo proto code"
@@ -15,22 +18,22 @@ for dir in $proto_dirs; do
     # gogo proto files SHOULD ONLY be generated if this is false
     # we don't want gogo proto to run for proto files which are natively built for google.golang.org/protobuf
     if grep -q "option go_package" "$file" && grep -H -o -c 'option go_package.*cosmossdk.io/api' "$file" | grep -q ':0$'; then
-      buf generate --template buf.gen.gogo.yaml "$file"
+      buf generate --template buf.gen.gogo.yaml $file
     fi
   done
 done
 
 cd ..
 
-# generate codec/testdata proto code
+# generate tests proto code
 (cd testutil/testdata; buf generate)
-
-# generate baseapp test messages
 (cd baseapp/testutil; buf generate)
+(cd tests/integration/tx/internal; make codegen)
 
 # move proto files to the right places
 cp -r github.com/cosmos/cosmos-sdk/* ./
-rm -rf github.com
+cp -r cosmossdk.io/** ./
+rm -rf github.com cosmossdk.io
 
 go mod tidy
 

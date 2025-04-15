@@ -4,14 +4,19 @@ import (
 	"testing"
 	"time"
 
-	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	tmtime "github.com/cometbft/cometbft/types/time"
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	cmttime "github.com/cometbft/cometbft/types/time"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/suite"
 
+	"cosmossdk.io/math"
+	storetypes "cosmossdk.io/store/types"
+
+	"github.com/cosmos/cosmos-sdk/runtime"
 	"github.com/cosmos/cosmos-sdk/testutil"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	moduletestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
+	authcodec "github.com/cosmos/cosmos-sdk/x/auth/codec"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/cosmos/cosmos-sdk/x/auth/vesting"
@@ -34,14 +39,14 @@ type VestingTestSuite struct {
 	ctx           sdk.Context
 	accountKeeper authkeeper.AccountKeeper
 	bankKeeper    *vestingtestutil.MockBankKeeper
-	stakingKeeper *vestingtestutil.MockStakingKeeper
 	msgServer     vestingtypes.MsgServer
 }
 
 func (s *VestingTestSuite) SetupTest() {
-	key := sdk.NewKVStoreKey(authtypes.StoreKey)
-	testCtx := testutil.DefaultContextWithDB(s.T(), key, sdk.NewTransientStoreKey("transient_test"))
-	s.ctx = testCtx.Ctx.WithBlockHeader(tmproto.Header{Time: tmtime.Now()})
+	key := storetypes.NewKVStoreKey(authtypes.StoreKey)
+	storeService := runtime.NewKVStoreService(key)
+	testCtx := testutil.DefaultContextWithDB(s.T(), key, storetypes.NewTransientStoreKey("transient_test"))
+	s.ctx = testCtx.Ctx.WithBlockHeader(cmtproto.Header{Time: cmttime.Now()})
 	encCfg := moduletestutil.MakeTestEncodingConfig()
 
 	maccPerms := map[string][]string{}
@@ -50,17 +55,17 @@ func (s *VestingTestSuite) SetupTest() {
 	s.bankKeeper = vestingtestutil.NewMockBankKeeper(ctrl)
 	s.accountKeeper = authkeeper.NewAccountKeeper(
 		encCfg.Codec,
-		key,
+		storeService,
 		authtypes.ProtoBaseAccount,
 		maccPerms,
+		authcodec.NewBech32Codec("cosmos"),
 		"cosmos",
 		authtypes.NewModuleAddress("gov").String(),
 	)
-	s.stakingKeeper = vestingtestutil.NewMockStakingKeeper(ctrl)
 
 	vestingtypes.RegisterInterfaces(encCfg.InterfaceRegistry)
 	authtypes.RegisterInterfaces(encCfg.InterfaceRegistry)
-	s.msgServer = vesting.NewMsgServerImpl(s.accountKeeper, s.bankKeeper, s.stakingKeeper)
+	s.msgServer = vesting.NewMsgServerImpl(s.accountKeeper, s.bankKeeper)
 }
 
 func (s *VestingTestSuite) TestCreateVestingAccount() {
@@ -70,6 +75,50 @@ func (s *VestingTestSuite) TestCreateVestingAccount() {
 		expErr    bool
 		expErrMsg string
 	}{
+		"empty from address": {
+			input: vestingtypes.NewMsgCreateVestingAccount(
+				[]byte{},
+				to1Addr,
+				sdk.Coins{fooCoin},
+				time.Now().Unix(),
+				true,
+			),
+			expErr:    true,
+			expErrMsg: "invalid 'from' address",
+		},
+		"empty to address": {
+			input: vestingtypes.NewMsgCreateVestingAccount(
+				fromAddr,
+				[]byte{},
+				sdk.Coins{fooCoin},
+				time.Now().Unix(),
+				true,
+			),
+			expErr:    true,
+			expErrMsg: "invalid 'to' address",
+		},
+		"invalid coins": {
+			input: vestingtypes.NewMsgCreateVestingAccount(
+				fromAddr,
+				to1Addr,
+				sdk.Coins{sdk.Coin{Denom: "stake", Amount: math.NewInt(-1)}},
+				time.Now().Unix(),
+				true,
+			),
+			expErr:    true,
+			expErrMsg: "-1stake: invalid coins",
+		},
+		"invalid end time": {
+			input: vestingtypes.NewMsgCreateVestingAccount(
+				fromAddr,
+				to1Addr,
+				sdk.Coins{fooCoin},
+				-10,
+				true,
+			),
+			expErr:    true,
+			expErrMsg: "invalid end time",
+		},
 		"create for existing account": {
 			preRun: func() {
 				toAcc := s.accountKeeper.NewAccountWithAddress(s.ctx, to1Addr)
@@ -129,7 +178,7 @@ func (s *VestingTestSuite) TestCreateVestingAccount() {
 				to3Addr,
 				sdk.Coins{fooCoin},
 				time.Now().Unix(),
-				true,
+				false,
 			),
 			expErr:    false,
 			expErrMsg: "",
@@ -138,7 +187,9 @@ func (s *VestingTestSuite) TestCreateVestingAccount() {
 
 	for name, tc := range testCases {
 		s.Run(name, func() {
-			tc.preRun()
+			if tc.preRun != nil {
+				tc.preRun()
+			}
 			_, err := s.msgServer.CreateVestingAccount(s.ctx, tc.input)
 			if tc.expErr {
 				s.Require().Error(err)
@@ -157,6 +208,33 @@ func (s *VestingTestSuite) TestCreatePermanentLockedAccount() {
 		expErr    bool
 		expErrMsg string
 	}{
+		"empty from address": {
+			input: vestingtypes.NewMsgCreatePermanentLockedAccount(
+				[]byte{},
+				to1Addr,
+				sdk.Coins{fooCoin},
+			),
+			expErr:    true,
+			expErrMsg: "invalid 'from' address",
+		},
+		"empty to address": {
+			input: vestingtypes.NewMsgCreatePermanentLockedAccount(
+				fromAddr,
+				[]byte{},
+				sdk.Coins{fooCoin},
+			),
+			expErr:    true,
+			expErrMsg: "invalid 'to' address",
+		},
+		"invalid coins": {
+			input: vestingtypes.NewMsgCreatePermanentLockedAccount(
+				fromAddr,
+				to1Addr,
+				sdk.Coins{sdk.Coin{Denom: "stake", Amount: math.NewInt(-1)}},
+			),
+			expErr:    true,
+			expErrMsg: "-1stake: invalid coins",
+		},
 		"create for existing account": {
 			preRun: func() {
 				toAcc := s.accountKeeper.NewAccountWithAddress(s.ctx, to1Addr)
@@ -206,7 +284,10 @@ func (s *VestingTestSuite) TestCreatePermanentLockedAccount() {
 
 	for name, tc := range testCases {
 		s.Run(name, func() {
-			tc.preRun()
+			if tc.preRun != nil {
+				tc.preRun()
+			}
+
 			_, err := s.msgServer.CreatePermanentLockedAccount(s.ctx, tc.input)
 			if tc.expErr {
 				s.Require().Error(err)
@@ -227,6 +308,86 @@ func (s *VestingTestSuite) TestCreatePeriodicVestingAccount() {
 		expErrMsg string
 	}{
 		{
+			name: "empty from address",
+			input: vestingtypes.NewMsgCreatePeriodicVestingAccount(
+				[]byte{},
+				to1Addr,
+				time.Now().Unix(),
+				[]vestingtypes.Period{
+					{
+						Length: 10,
+						Amount: sdk.NewCoins(periodCoin),
+					},
+				},
+			),
+			expErr:    true,
+			expErrMsg: "invalid 'from' address",
+		},
+		{
+			name: "empty to address",
+			input: vestingtypes.NewMsgCreatePeriodicVestingAccount(
+				fromAddr,
+				[]byte{},
+				time.Now().Unix(),
+				[]vestingtypes.Period{
+					{
+						Length: 10,
+						Amount: sdk.NewCoins(periodCoin),
+					},
+				},
+			),
+			expErr:    true,
+			expErrMsg: "invalid 'to' address",
+		},
+		{
+			name: "invalid start time",
+			input: vestingtypes.NewMsgCreatePeriodicVestingAccount(
+				fromAddr,
+				to1Addr,
+				0,
+				[]vestingtypes.Period{
+					{
+						Length: 10,
+						Amount: sdk.NewCoins(periodCoin),
+					},
+				},
+			),
+			expErr:    true,
+			expErrMsg: "invalid start time",
+		},
+		{
+			name: "invalid period",
+			input: vestingtypes.NewMsgCreatePeriodicVestingAccount(
+				fromAddr,
+				to1Addr,
+				time.Now().Unix(),
+				[]vestingtypes.Period{
+					{
+						Length: 0,
+						Amount: sdk.NewCoins(periodCoin),
+					},
+				},
+			),
+			expErr:    true,
+			expErrMsg: "invalid period",
+		},
+		{
+			name: "invalid coins",
+			input: vestingtypes.NewMsgCreatePeriodicVestingAccount(
+				fromAddr,
+				to1Addr,
+				time.Now().Unix(),
+				[]vestingtypes.Period{
+					{
+						Length: 1,
+						Amount: sdk.Coins{sdk.Coin{Denom: "stake", Amount: math.NewInt(-1)}},
+					},
+				},
+			),
+			expErr:    true,
+			expErrMsg: "-1stake: invalid coins",
+		},
+		{
 			name: "create for existing account",
 			preRun: func() {
 				s.bankKeeper.EXPECT().BlockedAddr(to1Addr).Return(false)
@@ -243,7 +404,6 @@ func (s *VestingTestSuite) TestCreatePeriodicVestingAccount() {
 						Amount: sdk.NewCoins(periodCoin),
 					},
 				},
-				true,
 			),
 			expErr:    true,
 			expErrMsg: "already exists",
@@ -267,7 +427,6 @@ func (s *VestingTestSuite) TestCreatePeriodicVestingAccount() {
 						Amount: sdk.NewCoins(fooCoin),
 					},
 				},
-				true,
 			),
 			expErr:    true,
 			expErrMsg: "not allowed to receive funds",
@@ -293,7 +452,6 @@ func (s *VestingTestSuite) TestCreatePeriodicVestingAccount() {
 						Amount: sdk.NewCoins(fooCoin),
 					},
 				},
-				true,
 			),
 			expErr:    false,
 			expErrMsg: "",
@@ -302,7 +460,9 @@ func (s *VestingTestSuite) TestCreatePeriodicVestingAccount() {
 
 	for _, tc := range testCases {
 		s.Run(tc.name, func() {
-			tc.preRun()
+			if tc.preRun != nil {
+				tc.preRun()
+			}
 			_, err := s.msgServer.CreatePeriodicVestingAccount(s.ctx, tc.input)
 			if tc.expErr {
 				s.Require().Error(err)
