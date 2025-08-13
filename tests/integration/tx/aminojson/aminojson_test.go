@@ -14,6 +14,7 @@ import (
 	gogoproto "github.com/cosmos/gogoproto/proto"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/protoadapt"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -42,6 +43,7 @@ import (
 	signing_testutil "cosmossdk.io/x/tx/signing/testutil"
 	"cosmossdk.io/x/upgrade"
 
+	"cosmossdk.io/api/amino"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	ed25519types "github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/multisig"
@@ -222,6 +224,23 @@ func cosmosAddrEncoder(_ *aminojson.Encoder, v protoreflect.Value, w io.Writer) 
 	}
 }
 
+func getAminoName(msg gogoproto.Message) string {
+	msgV2 := protoadapt.MessageV2Of(msg)
+
+	if msgV2 == nil {
+		return ""
+	}
+
+	messageOptions := msgV2.ProtoReflect().Descriptor().Options()
+
+	if proto.HasExtension(messageOptions, amino.E_Name) {
+		name := proto.GetExtension(messageOptions, amino.E_Name)
+		return name.(string)
+	}
+
+	return ""
+}
+
 func TestAminoJSON_AddressEquivalence(t *testing.T) {
 	encCfg := testutil.MakeTestEncodingConfig()
 	legacytx.RegressionTestingAminoCodec = encCfg.Amino
@@ -230,7 +249,10 @@ func TestAminoJSON_AddressEquivalence(t *testing.T) {
 
 	var gogoExemplarMsg gogoproto.Message = &gogo_testpb.WithAddress{}
 
-	encCfg.Amino.RegisterConcrete(gogoExemplarMsg, codectypes.MsgTypeURL(gogoExemplarMsg), nil)
+	name := getAminoName(gogoExemplarMsg)
+	require.NotEmpty(t, name)
+
+	encCfg.Amino.RegisterConcrete(gogoExemplarMsg, name, nil)
 	encCfg.InterfaceRegistry.RegisterImplementations((*types.Msg)(nil), gogoExemplarMsg)
 
 	var gogoMsg gogoproto.Message = &gogo_testpb.WithAddress{Owner: types.AccAddress("addr1")}

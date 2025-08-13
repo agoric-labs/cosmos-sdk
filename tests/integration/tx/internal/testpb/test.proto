@@ -60,6 +60,7 @@ message IntAsBytes {
 
 message WithAddress {
   option (gogoproto.equal) = false;
+  option (amino.name)      = "testpb/WithAddress";
 
   bytes owner = 1 [
     (gogoproto.casttype)  = "github.com/cosmos/cosmos-sdk/types.AccAddress",
