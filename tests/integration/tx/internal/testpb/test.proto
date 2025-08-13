@@ -62,9 +62,10 @@ message WithAddress {
   option (gogoproto.equal) = false;
 
   bytes owner = 1 [
-    (gogoproto.casttype) = "github.com/cosmos/cosmos-sdk/types.AccAddress",
-    (gogoproto.jsontag)  = "owner",
-    (gogoproto.moretags) = "yaml:\"owner\""
+    (gogoproto.casttype)  = "github.com/cosmos/cosmos-sdk/types.AccAddress",
+    (cosmos_proto.scalar) = "cosmos.AddressString",
+    (gogoproto.jsontag)   = "owner",
+    (gogoproto.moretags)  = "yaml:\"owner\""
   ];
 }
 

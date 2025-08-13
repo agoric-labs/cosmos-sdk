@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	gogoproto "github.com/cosmos/gogoproto/proto"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -185,10 +187,46 @@ func TestAminoJSON_Equivalence(t *testing.T) {
 	}
 }
 
+func jsonMarshal(w io.Writer, v interface{}) error {
+	blob, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(blob)
+	return err
+}
+
+func cosmosAddrEncoder(_ *aminojson.Encoder, v protoreflect.Value, w io.Writer) error {
+	switch val := v.Interface().(type) {
+	case string:
+		if val == "" {
+			return jsonMarshal(w, "")
+		}
+		accAddr, err := types.AccAddressFromBech32(val)
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal for Amino JSON encoding; string %q into AccAddress: %w", val, err)
+		}
+		return jsonMarshal(w, accAddr)
+	case []byte:
+		if len(val) == 0 {
+			return jsonMarshal(w, "")
+		}
+		err := types.VerifyAddressFormat(val)
+		if err != nil {
+			return err
+		}
+		var accAddr types.AccAddress = val
+		return jsonMarshal(w, accAddr)
+	default:
+		return fmt.Errorf("unsupported type %T", val)
+	}
+}
+
 func TestAminoJSON_AddressEquivalence(t *testing.T) {
 	encCfg := testutil.MakeTestEncodingConfig()
 	legacytx.RegressionTestingAminoCodec = encCfg.Amino
 	aj := aminojson.NewEncoder(aminojson.EncoderOptions{})
+	aj.DefineScalarEncoding("cosmos.AddressString", cosmosAddrEncoder)
 
 	var gogoExemplarMsg gogoproto.Message = &gogo_testpb.WithAddress{}
 
@@ -240,7 +278,7 @@ func TestAminoJSON_AddressEquivalence(t *testing.T) {
 	signerData, txData, err := signing_testutil.MakeHandlerArguments(handlerOptions)
 	require.NoError(t, err)
 
-	handler := aminojson.NewSignModeHandler(aminojson.SignModeHandlerOptions{})
+	handler := aminojson.NewSignModeHandler(aminojson.SignModeHandlerOptions{Encoder: &aj})
 	signBz, err := handler.GetSignBytes(context.Background(), signerData, txData)
 	require.NoError(t, err)
 
