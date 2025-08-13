@@ -58,6 +58,16 @@ message IntAsBytes {
   ];
 }
 
+message WithAddress {
+  option (gogoproto.equal) = false;
+
+  bytes owner = 1 [
+    (gogoproto.casttype) = "github.com/cosmos/cosmos-sdk/types.AccAddress",
+    (gogoproto.jsontag)  = "owner",
+    (gogoproto.moretags) = "yaml:\"owner\""
+  ];
+}
+
 service IntegrationTxTestMsg {
   option (cosmos.msg.v1.service) = true;
 

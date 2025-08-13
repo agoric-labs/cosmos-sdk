@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cosmos/cosmos-proto/anyutil"
 	"github.com/cosmos/cosmos-proto/rapidproto"
 	gogoproto "github.com/cosmos/gogoproto/proto"
 	"github.com/stretchr/testify/require"
@@ -182,6 +183,84 @@ func TestAminoJSON_Equivalence(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestAminoJSON_AddressEquivalence(t *testing.T) {
+	encCfg := testutil.MakeTestEncodingConfig()
+	legacytx.RegressionTestingAminoCodec = encCfg.Amino
+	aj := aminojson.NewEncoder(aminojson.EncoderOptions{})
+
+	var gogoExemplarMsg gogoproto.Message = &gogo_testpb.WithAddress{}
+
+	encCfg.Amino.RegisterConcrete(gogoExemplarMsg, codectypes.MsgTypeURL(gogoExemplarMsg), nil)
+	encCfg.InterfaceRegistry.RegisterImplementations((*types.Msg)(nil), gogoExemplarMsg)
+
+	var gogoMsg gogoproto.Message = &gogo_testpb.WithAddress{Owner: types.AccAddress("addr1")}
+
+	anyGogoMsg, err := codectypes.NewAnyWithValue(gogoMsg)
+	require.NoError(t, err)
+
+	protoMsg, err := anyutil.Unpack(&anypb.Any{
+		TypeUrl: anyGogoMsg.TypeUrl,
+		Value:   anyGogoMsg.Value,
+	}, encCfg.InterfaceRegistry, nil)
+	require.NoError(t, err)
+
+	protoBz, err := proto.Marshal(protoMsg)
+	require.NoError(t, err)
+
+	gogoType := reflect.TypeOf(gogoMsg).Elem()
+	newGogo := reflect.New(gogoType).Interface().(gogoproto.Message)
+	err = encCfg.Codec.Unmarshal(protoBz, newGogo)
+	require.NoError(t, err)
+	require.Equal(t, gogoMsg, newGogo)
+
+	anyProtoMsg, err := anyutil.New(protoMsg)
+	require.NoError(t, err)
+
+	legacyAminoJSON, err := encCfg.Amino.MarshalJSON(gogoMsg)
+	require.NoError(t, err)
+	legacyAminoJSON = sortJSON(t, legacyAminoJSON)
+	aminoJSON, err := aj.Marshal(anyProtoMsg)
+	require.NoError(t, err)
+	require.Equal(t, string(legacyAminoJSON), string(aminoJSON))
+
+	handlerOptions := signing_testutil.HandlerArgumentOptions{
+		ChainID:       "test-chain",
+		Memo:          "sometestmemo",
+		Msg:           protoMsg,
+		AccNum:        1,
+		AccSeq:        2,
+		SignerAddress: "signerAddress",
+		Fee: &txv1beta1.Fee{
+			Amount: []*v1beta1.Coin{{Denom: "uatom", Amount: "1000"}},
+		},
+	}
+
+	signerData, txData, err := signing_testutil.MakeHandlerArguments(handlerOptions)
+	require.NoError(t, err)
+
+	handler := aminojson.NewSignModeHandler(aminojson.SignModeHandlerOptions{})
+	signBz, err := handler.GetSignBytes(context.Background(), signerData, txData)
+	require.NoError(t, err)
+
+	legacyHandler := tx.NewSignModeLegacyAminoJSONHandler()
+	txBuilder := encCfg.TxConfig.NewTxBuilder()
+	require.NoError(t, txBuilder.SetMsgs([]types.Msg{gogoMsg}...))
+	txBuilder.SetMemo(handlerOptions.Memo)
+	txBuilder.SetFeeAmount(types.Coins{types.NewInt64Coin("uatom", 1000)})
+	theTx := txBuilder.GetTx()
+
+	legacySigningData := signing.SignerData{
+		ChainID:       handlerOptions.ChainID,
+		Address:       handlerOptions.SignerAddress,
+		AccountNumber: handlerOptions.AccNum,
+		Sequence:      handlerOptions.AccSeq,
+	}
+	legacySignBz, err := legacyHandler.GetSignBytes(signingtypes.SignMode_SIGN_MODE_LEGACY_AMINO_JSON,
+		legacySigningData, theTx)
+	require.NoError(t, err)
+	require.Equal(t, string(legacySignBz), string(signBz))
 }
 
 func newAny(t *testing.T, msg proto.Message) *anypb.Any {
@@ -417,6 +496,10 @@ func TestAminoJSON_LegacyParity(t *testing.T) {
 			gogo:   &gogo_testpb.IntAsBytes{},
 			pulsar: &pulsar_testpb.IntAsBytes{},
 		},
+		// "acc_address": {
+		// 	gogo:   &gogo_testpb.WithAddress{Owner: addr1},
+		// 	pulsar: &pulsar_testpb.WithAddress{Owner: addr1.Bytes()},
+		// },
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
