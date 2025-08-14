@@ -44,6 +44,8 @@ type EncoderOptions struct {
 	TypeResolver signing.TypeResolver
 	// FileResolver is used to resolve protobuf file descriptors TypeURL when TypeResolver fails.
 	FileResolver signing.ProtoFileResolver
+	// CustomAminoFieldEncoder is the function that will be used to add custom amino fields encoders.
+	CustomAminoFieldEncoder map[string]FieldEncoder
 }
 
 // Encoder is a JSON encoder that uses the Amino JSON encoding rules for protobuf messages.
@@ -97,6 +99,12 @@ func NewEncoder(options EncoderOptions) Encoder {
 		enumsAsString:      options.EnumAsString,
 		aminoNameAsTypeURL: options.AminoNameAsTypeURL,
 		marshalMappings:    options.MarshalMappings,
+	}
+	// Adds custom amino field encoders
+	if options.CustomAminoFieldEncoder != nil {
+		for name, encoder := range options.CustomAminoFieldEncoder {
+			enc.DefineFieldEncoding(name, encoder)
+		}
 	}
 	return enc
 }
