@@ -46,6 +46,8 @@ type ConfigOptions struct {
 	TextualCoinMetadataQueryFn textual.CoinMetadataQueryFn
 	// CustomSignModes are the custom sign modes that will be added to the txsigning.HandlerMap.
 	CustomSignModes []txsigning.SignModeHandler
+	// CostumAminoFieldEncoder is the function that will be used to add custom amino fields encoders.
+	CustomAminoFieldEncoder map[string]aminojson.FieldEncoder
 	// ProtoDecoder is the decoder that will be used to decode protobuf transactions.
 	ProtoDecoder sdk.TxDecoder
 	// ProtoEncoder is the encoder that will be used to encode protobuf transactions.
@@ -136,10 +138,14 @@ func NewSigningHandlerMap(configOpts ConfigOptions) (*txsigning.HandlerMap, erro
 				return nil, err
 			}
 		case signingtypes.SignMode_SIGN_MODE_LEGACY_AMINO_JSON:
-			handlers[i] = aminojson.NewSignModeHandler(aminojson.SignModeHandlerOptions{
+			aminoHandlerOptions := aminojson.SignModeHandlerOptions{
 				FileResolver: signingOpts.FileResolver,
 				TypeResolver: signingOpts.TypeResolver,
-			})
+			}
+			if configOpts.CustomAminoFieldEncoder != nil {
+				aminoHandlerOptions.CustomAminoFieldEncoders = configOpts.CustomAminoFieldEncoder
+			}
+			handlers[i] = aminojson.NewSignModeHandler(aminoHandlerOptions)
 		case signingtypes.SignMode_SIGN_MODE_TEXTUAL:
 			handlers[i], err = textual.NewSignModeHandler(textual.SignModeOptions{
 				CoinMetadataQuerier: configOpts.TextualCoinMetadataQueryFn,

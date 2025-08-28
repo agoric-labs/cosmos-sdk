@@ -23,9 +23,10 @@ type SignModeHandler struct {
 
 // SignModeHandlerOptions are the options for the SignModeHandler.
 type SignModeHandlerOptions struct {
-	FileResolver signing.ProtoFileResolver
-	TypeResolver signing.TypeResolver
-	Encoder      *Encoder
+	FileResolver             signing.ProtoFileResolver
+	TypeResolver             signing.TypeResolver
+	Encoder                  *Encoder
+	CustomAminoFieldEncoders map[string]FieldEncoder
 }
 
 // NewSignModeHandler returns a new SignModeHandler.
@@ -42,11 +43,15 @@ func NewSignModeHandler(options SignModeHandlerOptions) *SignModeHandler {
 		h.typeResolver = options.TypeResolver
 	}
 	if options.Encoder == nil {
-		h.encoder = NewEncoder(EncoderOptions{
+		encoderOptions := EncoderOptions{
 			FileResolver: options.FileResolver,
 			TypeResolver: options.TypeResolver,
 			EnumAsString: false, // ensure enum as string is disabled
-		})
+		}
+		if options.CustomAminoFieldEncoders != nil {
+			encoderOptions.CustomAminoFieldEncoder = options.CustomAminoFieldEncoders
+		}
+		h.encoder = NewEncoder(encoderOptions)
 	} else {
 		h.encoder = *options.Encoder
 	}
